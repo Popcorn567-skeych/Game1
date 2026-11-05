@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mammoth: Age of Frost</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Outfit:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            background-color: #030712;
+        }
+        .font-game {
+            font-family: 'Fredoka One', cursive;
+        }
+        /* Glassmorphism styling */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .glass-button {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.8), rgba(37, 99, 235, 0.9));
+            border: 1px solid rgba(147, 197, 253, 0.4);
+            box-shadow: 0 4px 20px rgba(37, 99, 235, 0.4);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .glass-button:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.6);
+        }
+        .glass-button:active {
+            transform: translateY(1px) scale(0.98);
+        }
+        /* Canvas positioning */
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        /* Touch control styling */
+        .touch-btn {
+            background: rgba(15, 23, 42, 0.65);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            user-select: none;
+        }
+        .touch-btn:active {
+            background: rgba(59, 130, 246, 0.7);
+            border-color: rgba(255, 255, 255, 0.6);
+            transform: scale(0.92);
+        }
+    </style>
+</head>
+<body class="relative w-screen h-screen overflow-hidden select-none text-white">
+
+    <!-- Canvas Container -->
+    <div class="relative w-full h-full">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- Dynamic HUD (Heads-Up Display) Overlay -->
+        <div id="hud" class="hidden absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none z-10">
+            <!-- Health & Stamina -->
+            <div class="flex flex-col gap-2 glass-panel p-3.5 rounded-2xl min-w-[200px]">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">❤️</span>
+                    <div class="w-full bg-slate-800/80 rounded-full h-4 overflow-hidden border border-slate-700">
+                        <div id="healthBar" class="bg-gradient-to-r from-red-500 to-rose-400 h-full w-full transition-all duration-300 rounded-full"></div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">⚡</span>
+                    <div class="w-full bg-slate-800/80 rounded-full h-3 overflow-hidden border border-slate-700">
+                        <div id="staminaBar" class="bg-gradient-to-r from-amber-400 to-yellow-300 h-full w-full transition-all duration-100 rounded-full"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Herd & Level Distance Counter -->
+            <div class="flex gap-4">
+                <div class="glass-panel px-4 py-2 rounded-2xl flex items-center gap-2">
+                    <span class="text-2xl animate-bounce">🦣</span>
+                    <div>
+                        <div class="text-[10px] uppercase font-bold tracking-wider text-slate-400">Herd Size</div>
+                        <div id="herdCount" class="font-game text-xl text-amber-300">1</div>
+                    </div>
+                </div>
+                <div class="glass-panel px-4 py-2 rounded-2xl flex items-center gap-2">
+                    <span class="text-2xl">🏔️</span>
+                    <div>
+                        <div class="text-[10px] uppercase font-bold tracking-wider text-slate-400">Distance</div>
+                        <div id="distanceMeter" class="font-game text-xl text-cyan-300">0 m</div>
+                    </div>
+                </div>
+                <button id="pauseBtn" class="pointer-events-auto glass-panel p-3 rounded-2xl hover:bg-slate-800 transition active:scale-95">
+                    ⏸️
+                </button>
+            </div>
+        </div>
+
+        <!-- Ability Cooldown HUD (Desktop Bottom) -->
+        <div id="abilityHud" class="hidden absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none z-10 flex gap-4">
+            <div class="glass-panel px-3 py-2 rounded-xl flex flex-col items-center min-w-[70px]">
+                <span class="text-xs font-bold text-slate-300 mb-1">[Z] Charge</span>
+                <div id="cdCharge" class="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-400 flex items-center justify-center font-bold text-sm">🦣</div>
+            </div>
+            <div class="glass-panel px-3 py-2 rounded-xl flex flex-col items-center min-w-[70px]">
+                <span class="text-xs font-bold text-slate-300 mb-1">[X] Trumpet</span>
+                <div id="cdTrumpet" class="w-8 h-8 rounded-full bg-cyan-500/20 border border-cyan-400 flex items-center justify-center font-bold text-sm">🎺</div>
+            </div>
+            <div class="glass-panel px-3 py-2 rounded-xl flex flex-col items-center min-w-[70px]">
+                <span class="text-xs font-bold text-slate-300 mb-1">[C] Frost Blast</span>
+                <div id="cdBlast" class="w-8 h-8 rounded-full bg-indigo-500/20 border border-indigo-400 flex items-center justify-center font-bold text-sm">❄️</div>
+            </div>
+        </div>
+
+        <!-- Touch Screen On-Screen Controls (Mobile/Tablet) -->
+        <div id="touchControls" class="hidden absolute inset-0 pointer-events-none z-20">
+            <!-- Left D-Pad Controls -->
+            <div class="absolute bottom-6 left-6 flex gap-3 pointer-events-auto">
+                <button id="btnLeft" class="touch-btn w-16 h-16 rounded-2xl text-2xl flex items-center justify-center">◀</button>
+                <button id="btnRight" class="touch-btn w-16 h-16 rounded-2xl text-2xl flex items-center justify-center">▶</button>
+            </div>
+
+            <!-- Right Action Buttons -->
+            <div class="absolute bottom-6 right-6 flex flex-col items-end gap-3 pointer-events-auto">
+                <button id="btnJump" class="touch-btn w-16 h-16 rounded-full text-2xl flex items-center justify-center bg-blue-600/30">⬆</button>
+                <div class="flex gap-2">
+                    <button id="btnAction1" class="touch-btn w-14 h-14 rounded-2xl text-xl flex items-center justify-center">🦣</button>
+                    <button id="btnAction2" class="touch-btn w-14 h-14 rounded-2xl text-xl flex items-center justify-center">🎺</button>
+                    <button id="btnAction3" class="touch-btn w-14 h-14 rounded-2xl text-xl flex items-center justify-center">❄️</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN MENU OVERLAY -->
+        <div id="menuOverlay" class="absolute inset-0 flex items-center justify-center z-30 bg-slate-950/80 backdrop-blur-md p-6">
+            <div class="glass-panel max-w-lg w-full p-8 rounded-3xl text-center border border-sky-500/30 shadow-2xl relative overflow-hidden">
+                <div class="absolute -top-24 -left-24 w-48 h-48 bg-sky-500/20 rounded-full blur-3xl"></div>
+                <div class="absolute -bottom-24 -right-24 w-48 h-48 bg-blue-600/20 rounded-full blur-3xl"></div>
+
+                <div class="text-6xl mb-2 animate-bounce">🦣</div>
+                <h1 class="font-game text-4xl sm:text-5xl text-transparent bg-clip-text bg-gradient-to-r from-sky-200 via-sky-400 to-blue-500 mb-2">
+                    MAMMOTH
+                </h1>
+                <p class="font-game text-lg text-sky-300 tracking-wider mb-6">AGE OF FROST</p>
+
+                <p class="text-slate-300 text-sm mb-6 leading-relaxed">
+                    Lead your woolly mammoth herd across treacherous glaciers! Rescue lost calves, defeat prehistoric predators, stomp hunter traps, and brave the frozen wilderness.
+                </p>
+
+                <div class="bg-slate-900/60 p-4 rounded-2xl mb-6 text-left border border-slate-800 text-xs text-slate-300 space-y-2">
+                    <div class="font-bold text-sky-400 text-sm mb-1">🎮 How to Play:</div>
+                    <div class="flex justify-between"><span>Move Left / Right</span> <span class="font-mono text-amber-300">A / D or Arrow Keys</span></div>
+                    <div class="flex justify-between"><span>Jump / Clamber</span> <span class="font-mono text-amber-300">Space or Up Arrow</span></div>
+                    <div class="flex justify-between"><span>Tusk Charge & Stomp</span> <span class="font-mono text-amber-300">Z Key</span></div>
+                    <div class="flex justify-between"><span>Trumpet Roar</span> <span class="font-mono text-amber-300">X Key</span></div>
+                    <div class="flex justify-between"><span>Trunk Frost Blast</span> <span class="font-mono text-amber-300">C Key</span></div>
+                </div>
+
+                <button id="startBtn" class="glass-button w-full py-4 rounded-2xl font-game text-xl text-white tracking-wide uppercase">
+                    Begin Migration ❄️
+                </button>
+            </div>
+        </div>
+
+        <!-- PAUSE OVERLAY -->
+        <div id="pauseOverlay" class="hidden absolute inset-0 z-30 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-6">
+            <div class="glass-panel max-w-sm w-full p-8 rounded-3xl text-center">
+                <h2 class="font-game text-3xl text-sky-300 mb-6">Migration Paused</h2>
+                <div class="flex flex-col gap-3">
+                    <button id="resumeBtn" class="glass-button py-3.5 rounded-xl font-game text-lg">Resume Journey</button>
+                    <button id="restartBtn" class="bg-slate-800 hover:bg-slate-700 py-3.5 rounded-xl font-game text-lg border border-slate-700 transition">Restart Level</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- GAME OVER / VICTORY OVERLAY -->
+        <div id="endOverlay" class="hidden absolute inset-0 z-30 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-6">
+            <div class="glass-panel max-w-md w-full p-8 rounded-3xl text-center border border-sky-500/30">
+                <div id="endEmoji" class="text-6xl mb-3">❄️</div>
+                <h2 id="endTitle" class="font-game text-3xl sm:text-4xl text-sky-200 mb-2">Journey Complete</h2>
+                <p id="endSubtitle" class="text-slate-300 text-sm mb-6">Your herd made it through the blizzard!</p>
+
+                <div class="grid grid-cols-2 gap-3 mb-6">
+                    <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                        <div class="text-xs text-slate-400">Distance</div>
+                        <div id="endDistance" class="font-game text-xl text-cyan-300">0 m</div>
+                    </div>
+                    <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                        <div class="text-xs text-slate-400">Calves Rescued</div>
+                        <div id="endHerd" class="font-game text-xl text-amber-300">0</div>
+                    </div>
+                </div>
+
+                <button id="playAgainBtn" class="glass-button w-full py-4 rounded-2xl font-game text-xl">
+                    Migrate Again 🔄
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AUDIO & GAME LOGIC ENGINE -->
+    <script>
+        /**
+         * Web Audio API Sound Synthesizer
+         * Provides procedural sound effects without external audio files.
+         */
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            // Mammoth Trumpet Roar Sound
+            trumpet() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                const filter = this.ctx.createBiquadFilter();
+
+                osc.type = 'sawtooth';
+                
+                // Frequency envelope for majestic trumpet pitch
+                const now = this.ctx.currentTime;
+                osc.frequency.setValueAtTime(140, now);
+                osc.frequency.exponentialRampToValueAtTime(320, now + 0.15);
+                osc.frequency.exponentialRampToValueAtTime(200, now + 0.6);
+
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(800, now);
+                filter.frequency.linearRampToValueAtTime(2400, now + 0.2);
+                filter.frequency.linearRampToValueAtTime(600, now + 0.6);
+
+                gain.gain.setValueAtTime(0.01, now);
+                gain.gain.linearRampToValueAtTime(0.4, now + 0.1);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.75);
+            }
+
+            // Heavy Footstep / Stomp
+            stomp() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                const now = this.ctx.currentTime;
+
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(120, now);
+                osc.frequency.exponentialRampToValueAtTime(30, now + 0.25);
+
+                gain.gain.setValueAtTime(0.5, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.25);
+            }
+
+            // Frost Blast Ice Magic
+            blast() {
+                if (!this.ctx) return;
+                const bufferSize = this.ctx.sampleRate * 0.4;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.value = 1500;
+                filter.Q.value = 3;
+
+                const gain = this.ctx.createGain();
+                const now = this.ctx.currentTime;
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                noise.start(now);
+            }
+
+            // Berry Pick up / Rescue Chime
+            pickup() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                const now = this.ctx.currentTime;
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
+
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.2);
+            }
+        }
+
+        const audio = new SoundFX();
+
+        /**
+         * MAIN GAME ENGINE
+         */
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game State Variables
+        let gameState = 'MENU'; // MENU, PLAYING, PAUSED, GAMEOVER, VICTORY
+        let cameraX = 0;
+        let distanceTraveled = 0;
+        let score = 0;
+
+        // Key controls
+        const keys = {
+            left: false,
+            right: false,
+            jump: false,
+            charge: false,
+            trumpet: false,
+            blast: false
+        };
+
+        // Resize Canvas dynamically
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Check mobile/touch support
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        if (isTouchDevice) {
+            document.getElementById('touchControls').classList.remove('hidden');
+        }
+
+        /**
+         * MAMMOTH PLAYER CLASS
+         */
+        class Mammoth {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.width = 90;
+                this.height = 70;
+                this.vx = 0;
+                this.vy = 0;
+                this.speed = 5;
+                this.jumpForce = -13;
+                this.grounded = false;
+                this.facing = 'right';
+
+                // Stats
+                this.maxHealth = 100;
+                this.health = 100;
+                this.maxStamina = 100;
+                this.stamina = 100;
+                this.herdSize = 1;
+
+                // Cooldowns (in frames @ 60fps)
+                this.cdCharge = 0;
+                this.cdTrumpet = 0;
+                this.cdBlast = 0;
+
+                // Action Animation States
+                this.isCharging = 0;
+                this.isTrumpeting = 0;
+                this.isBlasting = 0;
+                this.walkCycle = 0;
+                this.trunkAngle = 0;
+            }
+
+            update(platforms) {
+                // Stamina regeneration
+                if (this.stamina < this.maxStamina) {
+                    this.stamina = Math.min(this.maxStamina, this.stamina + 0.2);
+                }
+
+                // Decrease Cooldowns
+                if (this.cdCharge > 0) this.cdCharge--;
+                if (this.cdTrumpet > 0) this.cdTrumpet--;
+                if (this.cdBlast > 0) this.cdBlast--;
+
+                if (this.isCharging > 0) this.isCharging--;
+                if (this.isTrumpeting > 0) this.isTrumpeting--;
+                if (this.isBlasting > 0) this.isBlasting--;
+
+                // Movement Logic
+                let moveSpeed = this.speed;
+                if (this.isCharging > 0) moveSpeed *= 2.2;
+
+                if (keys.left) {
+                    this.vx = -moveSpeed;
+                    this.facing = 'left';
+                    this.walkCycle += 0.2;
+                } else if (keys.right) {
+                    this.vx = moveSpeed;
+                    this.facing = 'right';
+                    this.walkCycle += 0.2;
+                } else {
+                    this.vx *= 0.8;
+                }
+
+                // Jump logic
+                if (keys.jump && this.grounded) {
+                    this.vy = this.jumpForce;
+                    this.grounded = false;
+                    audio.stomp();
+                    // Dust particles on jump
+                    createDustParticles(this.x + this.width / 2, this.y + this.height, 10);
+                }
+
+                // Abilities Activation
+                if (keys.charge && this.cdCharge === 0 && this.stamina >= 25) {
+                    this.isCharging = 30; // 0.5s duration
+                    this.cdCharge = 90; // 1.5s cooldown
+                    this.stamina -= 25;
+                    audio.stomp();
+                    createShockwave(this.x + this.width / 2, this.y + this.height / 2, '#3b82f6');
+                }
+
+                if (keys.trumpet && this.cdTrumpet === 0 && this.stamina >= 30) {
+                    this.isTrumpeting = 40;
+                    this.cdTrumpet = 180; // 3s cooldown
+                    this.stamina -= 30;
+                    audio.trumpet();
+                    createTrumpetWave(this.x + (this.facing === 'right' ? this.width + 20 : -20), this.y + 20);
+                    // Push away nearby enemies & destroy hazards
+                    triggerTrumpetEffect(this);
+                }
+
+                if (keys.blast && this.cdBlast === 0 && this.stamina >= 35) {
+                    this.isBlasting = 30;
+                    this.cdBlast = 240; // 4s cooldown
+                    this.stamina -= 35;
+                    audio.blast();
+                    createFrostBlast(this.x + (this.facing === 'right' ? this.width : 0), this.y + 25, this.facing);
+                    triggerFrostEffect(this);
+                }
+
+                // Gravity
+                this.vy += 0.65;
+
+                // Update position
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Ground and platform collisions
+                this.grounded = false;
+                for (let plat of platforms) {
+                    if (this.x + this.width > plat.x &&
+                        this.x < plat.x + plat.width &&
+                        this.y + this.height >= plat.y &&
+                        this.y + this.height <= plat.y + 20 &&
+                        this.vy >= 0) {
+                        this.y = plat.y - this.height;
+                        this.vy = 0;
+                        this.grounded = true;
+                    }
+                }
+
+                // World Bottom Death Boundary
+                if (this.y > canvas.height + 300) {
+                    this.takeDamage(100);
+                }
+            }
+
+            takeDamage(amount) {
+                this.health -= amount;
+                if (this.health <= 0) {
+                    this.health = 0;
+                    gameOver(false);
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x - cameraX, this.y);
+
+                // Flip context if facing left
+                if (this.facing === 'left') {
+                    ctx.translate(this.width, 0);
+                    ctx.scale(-1, 1);
+                }
+
+                const legOffset = Math.sin(this.walkCycle) * 8;
+
+                // Charge Aura Glow
+                if (this.isCharging > 0) {
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = '#3b82f6';
+                }
+
+                // Legs (Back Legs)
+                ctx.fillStyle = '#4a2e1b';
+                ctx.fillRect(15 + legOffset, 45, 16, 28);
+                ctx.fillRect(55 - legOffset, 45, 16, 28);
+
+                // Body (Woolly fur oval)
+                ctx.fillStyle = '#6e4223';
+                ctx.beginPath();
+                ctx.ellipse(45, 35, 40, 30, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Fur highlights & texture
+                ctx.fillStyle = '#8b542b';
+                ctx.beginPath();
+                ctx.ellipse(42, 28, 34, 22, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Head Dome & Ears
+                ctx.fillStyle = '#5c361c';
+                ctx.beginPath();
+                ctx.arc(72, 22, 20, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Ear
+                ctx.fillStyle = '#4a2e1b';
+                ctx.beginPath();
+                ctx.ellipse(60, 24, 7, 12, 0.2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Eye
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(77, 18, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#0f172a';
+                ctx.beginPath();
+                ctx.arc(78, 18, 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Front Legs
+                ctx.fillStyle = '#5c361c';
+                ctx.fillRect(22 - legOffset, 45, 16, 28);
+                ctx.fillRect(62 + legOffset, 45, 16, 28);
+
+                // Tusks (Curved Ivory)
+                ctx.strokeStyle = '#fef08a';
+                ctx.lineWidth = 6;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(78, 30);
+                ctx.quadraticCurveTo(98, 40, 92, 10);
+                ctx.stroke();
+
+                // Dynamic Trunk Physics
+                let trunkBaseX = 85;
+                let trunkBaseY = 28;
+                let trunkTipX = 98;
+                let trunkTipY = 48;
+
+                if (this.isTrumpeting > 0) {
+                    trunkTipX = 95;
+                    trunkTipY = -5; // Lift trunk up high for roar!
+                } else if (this.isBlasting > 0) {
+                    trunkTipX = 110;
+                    trunkTipY = 25; // Point trunk straight forward
+                } else {
+                    trunkTipY += Math.sin(this.walkCycle) * 5;
+                }
+
+                ctx.strokeStyle = '#5c361c';
+                ctx.lineWidth = 10;
+                ctx.beginPath();
+                ctx.moveTo(trunkBaseX, trunkBaseY);
+                ctx.quadraticCurveTo(trunkBaseX + 10, trunkBaseY + 10, trunkTipX, trunkTipY);
+                ctx.stroke();
+
+                ctx.restore();
+            }
+        }
+
+        /**
+         * HERD CALF CLASS (Followers)
+         */
+        class MammothCalf {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.width = 45;
+                this.height = 35;
+                this.rescued = false;
+                this.walkCycle = Math.random() * 10;
+            }
+
+            update(leader, index) {
+                if (!this.rescued) {
+                    // Check collision with main mammoth to rescue
+                    if (Math.abs(leader.x - this.x) < 60 && Math.abs(leader.y - this.y) < 60) {
+                        this.rescued = true;
+                        leader.herdSize++;
+                        audio.pickup();
+                        createShockwave(this.x, this.y, '#f59e0b');
+                    }
+                } else {
+                    // Follow leader in chain
+                    const targetX = leader.x - (index + 1) * 55 * (leader.facing === 'right' ? 1 : -1);
+                    const targetY = leader.y + 30;
+
+                    this.x += (targetX - this.x) * 0.1;
+                    this.y += (targetY - this.y) * 0.1;
+                    this.walkCycle += 0.2;
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x - cameraX, this.y);
+
+                // Body
+                ctx.fillStyle = '#78350f';
+                ctx.beginPath();
+                ctx.ellipse(22, 20, 20, 15, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Head
+                ctx.beginPath();
+                ctx.arc(34, 12, 11, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Small Tusk
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(38, 16);
+                ctx.lineTo(44, 12);
+                ctx.stroke();
+
+                // Trunk
+                ctx.strokeStyle = '#78350f';
+                ctx.lineWidth = 5;
+                ctx.beginPath();
+                ctx.moveTo(40, 15);
+                ctx.quadraticCurveTo(45, 22, 42, 28);
+                ctx.stroke();
+
+                // Rescue heart indicator overhead if stranded
+                if (!this.rescued) {
+                    ctx.font = '16px sans-serif';
+                    ctx.fillText('❤️ HELP!', -5, -10);
+                }
+
+                ctx.restore();
+            }
+        }
+
+        /**
+         * ENEMIES (Saber-tooth Tiger / Smilodon & Tribe Hunters)
+         */
+        class Smilodon {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.width = 60;
+                this.height = 35;
+                this.vx = -2;
+                this.frozen = 0;
+                this.health = 40;
+            }
+
+            update(player) {
+                if (this.frozen > 0) {
+                    this.frozen--;
+                    return;
+                }
+
+                // Move towards player when in range
+                const dist = Math.abs(player.x - this.x);
+                if (dist < 400) {
+                    this.vx = player.x < this.x ? -3.5 : 3.5;
+                    this.x += this.vx;
+                }
+
+                // Damage player on contact
+                if (dist < 45 && Math.abs(player.y - this.y) < 40) {
+                    if (player.isCharging > 0) {
+                        // Player stomps tiger when charging
+                        this.health = 0;
+                        createDustParticles(this.x, this.y, 15);
+                        audio.stomp();
+                    } else {
+                        player.takeDamage(0.4);
+                    }
+                }
+            }
+
+            draw() {
+                if (this.health <= 0) return;
+                ctx.save();
+                ctx.translate(this.x - cameraX, this.y);
+
+                if (this.vx > 0) {
+                    ctx.translate(this.width, 0);
+                    ctx.scale(-1, 1);
+                }
+
+                // Body (Golden saber tiger)
+                ctx.fillStyle = this.frozen > 0 ? '#93c5fd' : '#d97706';
+                ctx.fillRect(10, 10, 40, 20);
+
+                // Head
+                ctx.fillRect(0, 5, 18, 18);
+
+                // Fangs
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.moveTo(4, 20);
+                ctx.lineTo(2, 28);
+                ctx.lineTo(7, 20);
+                ctx.fill();
+
+                // Ice Block Overlay if frozen
+                if (this.frozen > 0) {
+                    ctx.fillStyle = 'rgba(191, 219, 254, 0.6)';
+                    ctx.fillRect(-5, -2, 65, 40);
+                }
+
+                ctx.restore();
+            }
+        }
+
+        /**
+         * PARALLAX BACKGROUND & PARTICLES
+         */
+        let particles = [];
+        let shockwaves = [];
+        let platforms = [];
+        let collectibles = [];
+        let enemies = [];
+        let calves = [];
+        let player = new Mammoth(100, 200);
+
+        function createDustParticles(x, y, count) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: -Math.random() * 4,
+                    size: Math.random() * 6 + 2,
+                    color: '#e2e8f0',
+                    life: 30
+                });
+            }
+        }
+
+        function createShockwave(x, y, color) {
+            shockwaves.push({
+                x: x,
+                y: y,
+                radius: 10,
+                maxRadius: 90,
+                color: color,
+                alpha: 1
+            });
+        }
+
+        function createTrumpetWave(x, y) {
+            for (let i = 0; i < 5; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() + 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 4,
+                    size: Math.random() * 12 + 8,
+                    color: '#67e8f9',
+                    life: 25
+                });
+            }
+        }
+
+        function createFrostBlast(x, y, facing) {
+            const dir = facing === 'right' ? 1 : -1;
+            for (let i = 0; i < 25; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: dir * (Math.random() * 12 + 6),
+                    vy: (Math.random() - 0.5) * 6,
+                    size: Math.random() * 10 + 4,
+                    color: '#a5f3fc',
+                    life: 35
+                });
+            }
+        }
+
+        function triggerTrumpetEffect(m) {
+            enemies.forEach(e => {
+                if (Math.abs(e.x - m.x) < 250) {
+                    e.vx = (e.x > m.x ? 1 : -1) * 10; // Blast enemies back
+                }
+            });
+        }
+
+        function triggerFrostEffect(m) {
+            enemies.forEach(e => {
+                if (Math.abs(e.x - m.x) < 300) {
+                    e.frozen = 180; // Freeze for 3 seconds
+                }
+            });
+        }
+
+        /**
+         * LEVEL GENERATION
+         */
+        function generateLevel() {
+            platforms = [];
+            collectibles = [];
+            enemies = [];
+            calves = [];
+
+            let currentX = 0;
+
+            // Ground base platforms with ice gaps & vertical terrain
+            for (let i = 0; i < 40; i++) {
+                const width = Math.random() * 400 + 300;
+                const y = canvas.height - 120 - (Math.random() < 0.3 ? Math.random() * 120 : 0);
+
+                platforms.push({ x: currentX, y: y, width: width, height: 180 });
+
+                // Spawn lost calves on platforms
+                if (i > 0 && i % 4 === 0) {
+                    calves.push(new MammothCalf(currentX + width / 2, y - 40));
+                }
+
+                // Spawn Saber-Tooth Tigers
+                if (i > 1 && Math.random() < 0.6) {
+                    enemies.push(new Smilodon(currentX + width - 100, y - 40));
+                }
+
+                // Spawn Golden Frost Berries
+                if (Math.random() < 0.7) {
+                    collectibles.push({
+                        x: currentX + width / 3,
+                        y: y - 50,
+                        type: 'berry',
+                        collected: false
+                    });
+                }
+
+                currentX += width + (Math.random() * 140 + 80); // Ice Gap
+            }
+
+            // Finish Line Sanctuary Marker
+            platforms.push({ x: currentX, y: canvas.height - 140, width: 800, height: 200, isGoal: true });
+        }
+
+        /**
+         * RENDERING ENGINE & PARALLAX BACKGROUNDS
+         */
+        function drawBackground() {
+            // Gradient Aurora Borealis Sky
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#020617');
+            gradient.addColorStop(0.4, '#0f172a');
+            gradient.addColorStop(0.7, '#065f46');
+            gradient.addColorStop(1, '#0f172a');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Dynamic Aurora Waves
+            ctx.fillStyle = 'rgba(52, 211, 153, 0.12)';
+            ctx.beginPath();
+            ctx.moveTo(0, 100);
+            for (let x = 0; x <= canvas.width; x += 50) {
+                ctx.lineTo(x, 100 + Math.sin((x + Date.now() * 0.05) * 0.01) * 30);
+            }
+            ctx.lineTo(canvas.width, 0);
+            ctx.lineTo(0, 0);
+            ctx.fill();
+
+            // Distant Mountains (Parallax Layer 1)
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height);
+            for (let x = 0; x <= canvas.width + 100; x += 150) {
+                const mountainHeight = 250 + Math.sin((x + cameraX * 0.1) * 0.005) * 100;
+                ctx.lineTo(x, canvas.height - mountainHeight);
+            }
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.fill();
+
+            // Snowy Peaks Overlay (Parallax Layer 2)
+            ctx.fillStyle = '#334155';
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height);
+            for (let x = 0; x <= canvas.width + 100; x += 100) {
+                const peakHeight = 150 + Math.cos((x + cameraX * 0.3) * 0.008) * 70;
+                ctx.lineTo(x, canvas.height - peakHeight);
+            }
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.fill();
+        }
+
+        function drawPlatforms() {
+            for (let p of platforms) {
+                if (p.x + p.width < cameraX || p.x > cameraX + canvas.width) continue;
+
+                // Ground Base
+                ctx.fillStyle = p.isGoal ? '#047857' : '#1e293b';
+                ctx.fillRect(p.x - cameraX, p.y, p.width, p.height);
+
+                // Snow Top Crust
+                ctx.fillStyle = '#f8fafc';
+                ctx.fillRect(p.x - cameraX, p.y, p.width, 14);
+
+                // Ice Icicles underneath platform
+                ctx.fillStyle = '#93c5fd';
+                for (let ix = p.x; ix < p.x + p.width; ix += 40) {
+                    ctx.beginPath();
+                    ctx.moveTo(ix - cameraX, p.y + 14);
+                    ctx.lineTo(ix + 10 - cameraX, p.y + 30);
+                    ctx.lineTo(ix + 20 - cameraX, p.y + 14);
+                    ctx.fill();
+                }
+
+                // Goal Banner
+                if (p.isGoal) {
+                    ctx.font = '32px sans-serif';
+                    ctx.fillText('🏕️ HERD SANCTUARY', p.x + 100 - cameraX, p.y - 40);
+                }
+            }
+        }
+
+        function drawCollectibles() {
+            for (let c of collectibles) {
+                if (c.collected) continue;
+                if (Math.abs(player.x - c.x) < 40 && Math.abs(player.y - c.y) < 40) {
+                    c.collected = true;
+                    player.health = Math.min(player.maxHealth, player.health + 20);
+                    player.stamina = Math.min(player.maxStamina, player.stamina + 30);
+                    audio.pickup();
+                    createDustParticles(c.x, c.y, 8);
+                }
+
+                ctx.save();
+                ctx.translate(c.x - cameraX, c.y + Math.sin(Date.now() * 0.005) * 5);
+                ctx.font = '24px sans-serif';
+                ctx.fillText('🫐', 0, 0);
+                ctx.restore();
+            }
+        }
+
+        function updateHUD() {
+            document.getElementById('healthBar').style.width = `${(player.health / player.maxHealth) * 100}%`;
+            document.getElementById('staminaBar').style.width = `${(player.stamina / player.maxStamina) * 100}%`;
+            document.getElementById('herdCount').innerText = player.herdSize;
+
+            distanceTraveled = Math.max(distanceTraveled, Math.floor(player.x / 10));
+            document.getElementById('distanceMeter').innerText = `${distanceTraveled} m`;
+
+            // Update Ability Cooldown UI opacity
+            document.getElementById('cdCharge').style.opacity = player.cdCharge === 0 ? '1' : '0.4';
+            document.getElementById('cdTrumpet').style.opacity = player.cdTrumpet === 0 ? '1' : '0.4';
+            document.getElementById('cdBlast').style.opacity = player.cdBlast === 0 ? '1' : '0.4';
+        }
+
+        /**
+         * GAME LOOP
+         */
+        function gameLoop() {
+            if (gameState === 'PLAYING') {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Smooth Camera Follow
+                cameraX += (player.x - canvas.width * 0.3 - cameraX) * 0.1;
+
+                // Render Background
+                drawBackground();
+
+                // Render Platforms
+                drawPlatforms();
+
+                // Update & Render Collectibles
+                drawCollectibles();
+
+                // Update & Render Calves
+                calves.forEach((calf, index) => {
+                    calf.update(player, index);
+                    calf.draw();
+                });
+
+                // Update & Render Enemies
+                enemies.forEach(enemy => {
+                    enemy.update(player);
+                    enemy.draw();
+                });
+
+                // Update & Render Player
+                player.update(platforms);
+                player.draw();
+
+                // Update Particles
+                particles.forEach((p, index) => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.life--;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x - cameraX, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    if (p.life <= 0) particles.splice(index, 1);
+                });
+
+                // Update Shockwaves
+                shockwaves.forEach((sw, index) => {
+                    sw.radius += 4;
+                    sw.alpha -= 0.03;
+                    ctx.strokeStyle = sw.color;
+                    ctx.lineWidth = 4;
+                    ctx.globalAlpha = Math.max(0, sw.alpha);
+                    ctx.beginPath();
+                    ctx.arc(sw.x - cameraX, sw.y, sw.radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.globalAlpha = 1.0;
+
+                    if (sw.alpha <= 0) shockwaves.splice(index, 1);
+                });
+
+                // Check Goal / Victory Trigger
+                const goalPlat = platforms.find(p => p.isGoal);
+                if (goalPlat && player.x > goalPlat.x + 100) {
+                    gameOver(true);
+                }
+
+                // Update HUD Numbers
+                updateHUD();
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            audio.init();
+            player = new Mammoth(100, 200);
+            distanceTraveled = 0;
+            cameraX = 0;
+            generateLevel();
+
+            gameState = 'PLAYING';
+            document.getElementById('menuOverlay').classList.add('hidden');
+            document.getElementById('endOverlay').classList.add('hidden');
+            document.getElementById('pauseOverlay').classList.add('hidden');
+            document.getElementById('hud').classList.remove('hidden');
+            document.getElementById('abilityHud').classList.remove('hidden');
+        }
+
+        function gameOver(isVictory) {
+            gameState = isVictory ? 'VICTORY' : 'GAMEOVER';
+            document.getElementById('hud').classList.add('hidden');
+            document.getElementById('abilityHud').classList.add('hidden');
+            document.getElementById('endOverlay').classList.remove('hidden');
+
+            document.getElementById('endTitle').innerText = isVictory ? 'Migration Successful!' : 'Herd Extinct';
+            document.getElementById('endSubtitle').innerText = isVictory 
+                ? 'Your herd safely reached the warm green valley!' 
+                : 'The harsh blizzard and predators claimed your mammoth...';
+            document.getElementById('endEmoji').innerText = isVictory ? '🏆' : '💀';
+            document.getElementById('endDistance').innerText = `${distanceTraveled} m`;
+            document.getElementById('endHerd').innerText = player.herdSize;
+        }
+
+        /**
+         * EVENT LISTENERS (KEYBOARD & TOUCH)
+         */
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
+            if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') keys.jump = true;
+            if (e.code === 'KeyZ') keys.charge = true;
+            if (e.code === 'KeyX') keys.trumpet = true;
+            if (e.code === 'KeyC') keys.blast = true;
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
+            if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') keys.jump = false;
+            if (e.code === 'KeyZ') keys.charge = false;
+            if (e.code === 'KeyX') keys.trumpet = false;
+            if (e.code === 'KeyC') keys.blast = false;
+        });
+
+        // Touch Control Listeners
+        const bindTouch = (id, keyName) => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyName] = true; });
+            btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyName] = false; });
+        };
+
+        bindTouch('btnLeft', 'left');
+        bindTouch('btnRight', 'right');
+        bindTouch('btnJump', 'jump');
+        bindTouch('btnAction1', 'charge');
+        bindTouch('btnAction2', 'trumpet');
+        bindTouch('btnAction3', 'blast');
+
+        // UI Button Listeners
+        document.getElementById('startBtn').addEventListener('click', startGame);
+        document.getElementById('playAgainBtn').addEventListener('click', startGame);
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            gameState = 'PAUSED';
+            document.getElementById('pauseOverlay').classList.remove('hidden');
+        });
+        document.getElementById('resumeBtn').addEventListener('click', () => {
+            gameState = 'PLAYING';
+            document.getElementById('pauseOverlay').classList.add('hidden');
+        });
+        document.getElementById('restartBtn').addEventListener('click', startGame);
+
+        // Start animation loop
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
